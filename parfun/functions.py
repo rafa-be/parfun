@@ -5,12 +5,17 @@ from typing import Any, Callable, Deque, Iterable, Optional, Tuple
 
 from parfun.backend.mixins import BackendSession, ProfiledFuture
 from parfun.entry_point import get_parallel_backend
+from parfun.object import Args, ReturnType
 from parfun.profiler.object import TraceTime
+from parfun.profiler.functions import timed_function
 
 
 def parallel_timed_map(
-    func: Callable, *iterables, backend_session: Optional[BackendSession] = None, timeout: Optional[float] = None
-) -> Iterable[Tuple[Any, TraceTime]]:
+    func: Callable[Args, ReturnType],
+    *iterables,
+    backend_session: Optional[BackendSession] = None,
+    timeout: Optional[float] = None
+) -> Iterable[Tuple[ReturnType, TraceTime]]:
     """
     Similar to :py:func:`parallel_map`, but returns the total execution time (including scheduling) of every sub task.
 
@@ -27,8 +32,8 @@ def parallel_timed_map(
 
     # Uses a generator function, so that we can use deque.pop() and thus discard the no longer required futures'
     # references as we yield them.
-    def result_generator(backend_session: BackendSession):
-        futures: Deque[ProfiledFuture] = collections.deque()
+    def result_generator(backend_session: BackendSession) -> Iterable[Tuple[ReturnType, TraceTime]]:
+        futures: Deque[ProfiledFuture[ReturnType]] = collections.deque()
 
         try:
             for args in zip(*iterables):
@@ -54,7 +59,7 @@ def parallel_timed_map(
 
         if current_backend is None:
             logging.warning(f"no parallel backend engine set, run `{func.__name__}()` sequentially.")
-            return map(func, *iterables)
+            return (timed_function(func, *args) for args in iterables)
 
         with current_backend.session() as current_backend_session:
             return result_generator(current_backend_session)
@@ -63,8 +68,11 @@ def parallel_timed_map(
 
 
 def parallel_map(
-    func: Callable, *iterables, backend_session: Optional[BackendSession] = None, timeout: Optional[float] = None
-) -> Iterable:
+    func: Callable[Args, ReturnType],
+    *iterables,
+    backend_session: Optional[BackendSession] = None,
+    timeout: Optional[float] = None
+) -> Iterable[ReturnType]:
     """
     Similar to :py:func:`concurrent.futures.Executor.map()` but lazily consumes and returns the iterators' content as
     worker nodes get available.
@@ -85,11 +93,11 @@ def parallel_map(
 
 
 def parallel_starmap(
-    func: Callable,
+    func: Callable[Args, ReturnType],
     iterable: Iterable[Tuple[Any, ...]],
     backend_session: Optional[BackendSession] = None,
     timeout: Optional[float] = None,
-) -> Iterable:
+) -> Iterable[ReturnType]:
     """
     Similar to :py:func:`concurrent.futures.Executor.starmap()` but lazily consumes and returns the iterators' content
     as worker nodes get available.

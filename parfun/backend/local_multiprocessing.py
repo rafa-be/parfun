@@ -1,6 +1,7 @@
 import multiprocessing
 from concurrent.futures import Executor, Future, ProcessPoolExecutor, ThreadPoolExecutor
 from threading import BoundedSemaphore
+from typing import Callable, Tuple
 
 import attrs
 import psutil
@@ -8,7 +9,9 @@ from attrs.validators import instance_of
 
 from parfun.backend.mixins import BackendEngine, BackendSession
 from parfun.backend.profiled_future import ProfiledFuture
+from parfun.object import Args, ReturnType
 from parfun.profiler.functions import profile, timed_function
+from parfun.profiler.object import TraceTime
 
 
 class LocalMultiprocessingSession(BackendSession):
@@ -25,13 +28,17 @@ class LocalMultiprocessingSession(BackendSession):
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         return None
 
-    def submit(self, fn, *args, **kwargs) -> ProfiledFuture:
+    def submit(
+        self, fn: Callable[Args, ReturnType], *args: Args.args, **kwargs: Args.kwargs
+    ) -> ProfiledFuture[ReturnType]:
         with profile() as submit_duration:
-            future = ProfiledFuture()
+            future: ProfiledFuture[ReturnType] = ProfiledFuture()
 
             self._concurrent_task_guard.acquire()
 
-            underlying_future = self._underlying_executor.submit(timed_function, fn, *args, **kwargs)
+            underlying_future = self._underlying_executor.submit(
+                timed_function, fn, *args, **kwargs  # type: ignore[arg-type]
+            )
 
         def on_done_callback(underlying_future: Future):
             assert submit_duration.value is not None
@@ -44,7 +51,7 @@ class LocalMultiprocessingSession(BackendSession):
                 exception = underlying_future.exception()
 
                 if exception is None:
-                    function_duration, result = underlying_future.result()
+                    result, function_duration = underlying_future.result()
                 else:
                     function_duration = 0
                     result = None

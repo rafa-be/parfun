@@ -2,6 +2,7 @@ from typing import Callable
 
 from parfun.backend.mixins import BackendEngine, BackendSession
 from parfun.backend.profiled_future import ProfiledFuture
+from parfun.object import Args, ReturnType
 from parfun.profiler.functions import profile
 
 
@@ -15,9 +16,11 @@ class LocalSingleProcessSession(BackendSession):
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         return None
 
-    def submit(self, fn: Callable, *args, **kwargs) -> ProfiledFuture:
+    def submit(
+        self, fn: Callable[Args, ReturnType], *args: Args.args, **kwargs: Args.kwargs
+    ) -> ProfiledFuture[ReturnType]:
         with profile() as function_duration:
-            future = ProfiledFuture()
+            future: ProfiledFuture[ReturnType] = ProfiledFuture()
 
             try:
                 result = fn(*args, **kwargs)

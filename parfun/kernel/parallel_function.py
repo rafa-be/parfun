@@ -9,7 +9,7 @@ from parfun.backend.mixins import BackendEngine
 from parfun.entry_point import get_parallel_backend, set_parallel_backend_context
 from parfun.functions import parallel_timed_map
 from parfun.kernel.function_signature import FunctionSignature, NamedArguments
-from parfun.object import FunctionInputType, FunctionOutputType, PartitionType
+from parfun.object import Args, ReturnType
 from parfun.partition.object import PartitionGenerator
 from parfun.partition_size_estimator.linear_regression_estimator import LinearRegessionEstimator
 from parfun.partition_size_estimator.mixins import PartitionSizeEstimator
@@ -18,22 +18,22 @@ from parfun.profiler.object import PartitionedTaskTrace
 
 
 @attrs.define(init=False)
-class ParallelFunction:
+class ParallelFunction(Callable[Args, ReturnType]):
     """Wraps a function so that it executes in parallel using a map-reduce/scatter-gather approach.
 
     See the `@parfun()` decorator for a more user-friendly interface.
     """
 
-    function: Callable[[FunctionInputType], FunctionOutputType] = attrs.field()
+    function: Callable[Args, ReturnType] = attrs.field()
 
     function_name: str = attrs.field()
 
     split: Callable[[NamedArguments], Tuple[NamedArguments, PartitionGenerator[NamedArguments]]] = attrs.field()
 
-    combine_with: Callable[[Iterable[FunctionOutputType]], FunctionOutputType] = attrs.field()
+    combine_with: Callable[[Iterable[ReturnType]], ReturnType] = attrs.field()
 
-    initial_partition_size: Optional[Union[int, Callable[[FunctionInputType], int]]] = attrs.field()
-    fixed_partition_size: Optional[Union[int, Callable[[FunctionInputType], int]]] = attrs.field()
+    initial_partition_size: Optional[Union[int, Callable[Args, int]]] = attrs.field()
+    fixed_partition_size: Optional[Union[int, Callable[Args, int]]] = attrs.field()
 
     profile: bool = attrs.field()
     trace_export: Optional[str] = attrs.field()
@@ -45,12 +45,12 @@ class ParallelFunction:
 
     def __init__(
         self,
-        function: Callable[[FunctionInputType], FunctionOutputType],
+        function: Callable[Args, ReturnType],
         function_name: str,
         split: Callable[[NamedArguments], Tuple[NamedArguments, PartitionGenerator[NamedArguments]]],
-        combine_with: Callable[[Iterable[FunctionOutputType]], FunctionOutputType],
-        initial_partition_size: Optional[Union[int, Callable[[FunctionInputType], int]]] = None,
-        fixed_partition_size: Optional[Union[int, Callable[[FunctionInputType], int]]] = None,
+        combine_with: Callable[[Iterable[ReturnType]], ReturnType],
+        initial_partition_size: Optional[Union[int, Callable[Args, int]]] = None,
+        fixed_partition_size: Optional[Union[int, Callable[Args, int]]] = None,
         profile: bool = False,
         trace_export: Optional[str] = None,
         partition_size_estimator_factory: Callable[[], PartitionSizeEstimator] = LinearRegessionEstimator,
@@ -89,7 +89,7 @@ class ParallelFunction:
         if any(arg.kind == Parameter.POSITIONAL_ONLY for arg in self._function_signature.args.values()):
             raise ValueError("parfun toolkit does not support positional only parameters yet.")
 
-    def __call__(self, *args, **kwargs) -> FunctionOutputType:
+    def __call__(self, *args: Args.args, **kwargs: Args.kwargs) -> ReturnType:
         current_backend = get_parallel_backend()
         allows_nested_tasks = current_backend is not None and current_backend.allows_nested_tasks()
 
@@ -174,7 +174,7 @@ class ParallelFunction:
         return initial_partition_size, fixed_partition_size
 
 
-def is_nested_parallelism():
+def is_nested_parallelism() -> bool:
     """Returns True if there is any call to `_apply_function()` in the current call stack."""
 
     frame = currentframe()
@@ -186,11 +186,11 @@ def is_nested_parallelism():
 
 
 def apply_function(
-    function: Callable[[PartitionType], FunctionOutputType],
+    function: Callable[Args, ReturnType],
     non_partitioned_args: NamedArguments,
     partition: Tuple[NamedArguments, PartitionedTaskTrace],
     backend: Optional[BackendEngine] = None,
-) -> Tuple[FunctionOutputType, PartitionedTaskTrace]:
+) -> Tuple[ReturnType, PartitionedTaskTrace]:
     """
     Runs the function with the partitioned object and its profiling trace.
 

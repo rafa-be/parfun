@@ -6,9 +6,10 @@ import importlib
 from functools import wraps
 from typing import Callable, Iterable, Optional, Tuple, Union
 
+from parfun.kernel.delayed_value import DelayedValue
 from parfun.kernel.function_signature import NamedArguments
 from parfun.kernel.parallel_function import ParallelFunction
-from parfun.object import FunctionInputType, FunctionOutputType
+from parfun.object import Args, ReturnType
 from parfun.partition.object import PartitionGenerator
 from parfun.partition_size_estimator.linear_regression_estimator import LinearRegessionEstimator
 from parfun.partition_size_estimator.mixins import PartitionSizeEstimator
@@ -16,13 +17,13 @@ from parfun.partition_size_estimator.mixins import PartitionSizeEstimator
 
 def parfun(
     split: Callable[[NamedArguments], Tuple[NamedArguments, PartitionGenerator[NamedArguments]]],
-    combine_with: Callable[[Iterable[FunctionOutputType]], FunctionOutputType],
-    initial_partition_size: Optional[Union[int, Callable[[FunctionInputType], int]]] = None,
-    fixed_partition_size: Optional[Union[int, Callable[[FunctionInputType], int]]] = None,
+    combine_with: Callable[[Iterable[ReturnType]], ReturnType],
+    initial_partition_size: Optional[Union[int, Callable[Args, int]]] = None,
+    fixed_partition_size: Optional[Union[int, Callable[Args, int]]] = None,
     profile: bool = False,
     trace_export: Optional[str] = None,
     partition_size_estimator_factory: Callable[[], PartitionSizeEstimator] = LinearRegessionEstimator,
-) -> Callable:
+) -> Callable[[Callable[Args, ReturnType]], Callable[Args, ReturnType]]:
     """
     Returns a function decorator that automatically parallelizes a function.
 
@@ -76,7 +77,7 @@ def parfun(
     :rtype: Callable
     """
 
-    def decorator(function: Callable[[FunctionInputType], FunctionOutputType]):
+    def decorator(function: Callable[Args, ReturnType]):
         # init a ParallelFunction object to handle parallel computations automatically
         parallel_function = ParallelFunction(
             function=function,
@@ -91,21 +92,39 @@ def parfun(
         )
 
         @wraps(function)
-        def wrapped(*args, **kwargs):
+        def wrapped(*args: Args.args, **kwargs: Args.kwargs):
             # Remark: we cannot decorate `parallel_function` with `wraps` directly as it's not a regular function.
             return parallel_function(*args, **kwargs)
 
-        # Renames the original function as "_{function_name}_sequential" and adds it to the same module.
-        # This is required as Pickle requires all serialized functions to be accessible from a qualified module, which
-        # will not be the case for the original function as it gets overridden by the decorator.
-        module = importlib.import_module(function.__module__)
-        name = f"_{function.__name__}_sequential"
-        parent_qualname, parent_separator, old_qualname = function.__qualname__.rpartition(".")
-        qualname = f"{parent_qualname}{parent_separator}_{old_qualname}_sequential"
-        setattr(module, name, function)
-        getattr(module, name).__name__ = name
-        getattr(module, name).__qualname__ = qualname
+        __rename_function(function, "sequential")
 
         return wrapped
 
     return decorator
+
+
+def delayed(function: Callable[Args, ReturnType]) -> Callable[Args, DelayedValue[ReturnType]]:
+    @wraps(function)
+    def wrapped(*args: Args.args, **kwargs: Args.kwargs):
+        return DelayedValue(function, args, kwargs)
+
+    __rename_function(function, "undelayed")
+
+    return wrapped
+
+
+def __rename_function(function: Callable, new_suffix: str) -> None:
+    """
+    Renames the original decorated function by adding the provided suffix, and adds it to the same module.
+
+    This might be required as Pickle requires all serialized functions to be accessible from a qualified module, which
+    will not be the case for the original function as it gets overridden by the decorator.
+    """
+
+    module = importlib.import_module(function.__module__)
+    name = f"_{function.__name__}_{new_suffix}"
+    parent_qualname, parent_separator, old_qualname = function.__qualname__.rpartition(".")
+    qualname = f"{parent_qualname}{parent_separator}_{old_qualname}_{new_suffix}"
+    setattr(module, name, function)
+    getattr(module, name).__name__ = name
+    getattr(module, name).__qualname__ = qualname

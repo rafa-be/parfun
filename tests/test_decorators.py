@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import time
 import timeit
@@ -12,7 +13,7 @@ except ImportError:
 
 from parfun.combine.collection import list_concat
 from parfun.combine.dataframe import df_concat
-from parfun.decorators import parfun
+from parfun.decorators import parfun, delayed
 from parfun.entry_point import (
     BACKEND_REGISTRY, get_parallel_backend, set_parallel_backend, set_parallel_backend_context
 )
@@ -164,6 +165,16 @@ class TestDecorators(unittest.TestCase):
 
         self.assertTrue(sequential.equals(parallel))
 
+    def test_delayed(self):
+        xs = list(range(0, 100))
+
+        expected_sum = sum(math.pow(x, 2) for x in xs)
+
+        delayed_squares = [_delayed_pow(x, 2) for x in xs]
+        delayed_sum = sum(int(y) for y in delayed_squares)
+
+        self.assertEqual(expected_sum, delayed_sum)
+
 
 @parfun(split=multiple_arguments(("col1", "col2", "col3"), list_by_chunk), combine_with=sum, fixed_partition_size=100)
 def _sum_horizontally(col1: Iterable[int], col2: Iterable[int], col3: Iterable[int], constant: int) -> int:
@@ -249,6 +260,11 @@ def _per_argument_sum(a: List, b: pd.DataFrame) -> pd.DataFrame:
         result.iloc[i, :] *= v
 
     return result
+
+
+@delayed
+def _delayed_pow(x: float, y: float) -> float:
+    return x ** y
 
 
 if __name__ == "__main__":

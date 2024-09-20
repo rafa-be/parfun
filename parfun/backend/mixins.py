@@ -3,6 +3,7 @@ from contextlib import AbstractContextManager
 from typing import Any, Callable
 
 from parfun.backend.profiled_future import ProfiledFuture
+from parfun.object import Args, ReturnType
 
 
 class BackendSession(AbstractContextManager, metaclass=abc.ABCMeta):
@@ -21,7 +22,9 @@ class BackendSession(AbstractContextManager, metaclass=abc.ABCMeta):
         return value
 
     @abc.abstractmethod
-    def submit(self, fn: Callable, *args, **kwargs) -> ProfiledFuture:
+    def submit(
+        self, fn: Callable[Args, ReturnType], *args: Args.args, **kwargs: Args.kwargs
+    ) -> ProfiledFuture[ReturnType]:
         """
         Executes an asynchronous computation.
 

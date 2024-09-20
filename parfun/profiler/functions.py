@@ -4,10 +4,10 @@ import inspect
 import sys
 import time
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, Iterable, Optional, TextIO, Tuple
+from typing import Callable, Generator, Iterable, Optional, TextIO, Tuple
 
 from parfun.kernel.function_signature import NamedArguments
-from parfun.object import FunctionOutputType
+from parfun.object import Args, ReturnType
 from parfun.partition.object import PartitionGenerator
 from parfun.partition_size_estimator.mixins import PartitionSizeEstimator
 from parfun.profiler.object import PartitionedTaskTrace, ProfileDuration, TaskTrace, TraceTime
@@ -35,7 +35,9 @@ def profile(timer_function: Callable[[], TraceTime] = time.process_time_ns):
     profile_duration.value = timer_function() - starts_at
 
 
-def timed_function(fn: Callable, *args, **kwargs) -> Tuple[TraceTime, Any]:
+def timed_function(
+    fn: Callable[Args, ReturnType], *args: Args.args, **kwargs: Args.kwargs
+) -> Tuple[ReturnType, TraceTime]:
     """
     Runs the provided function with the specified args, and returns its execution CPU time and its returned value.
     """
@@ -43,7 +45,7 @@ def timed_function(fn: Callable, *args, **kwargs) -> Tuple[TraceTime, Any]:
     with profile() as duration:
         result = fn(*args, **kwargs)
 
-    return duration.value, result
+    return result, duration.value
 
 
 def timed_partition(
@@ -126,10 +128,10 @@ def timed_partition(
 
 
 def timed_combine_with(
-    combine_with: Callable[[Iterable[FunctionOutputType]], FunctionOutputType],
+    combine_with: Callable[[Iterable[ReturnType]], ReturnType],
     partition_size_estimator: Optional[PartitionSizeEstimator],
-    results: Iterable[Tuple[Tuple[FunctionOutputType, PartitionedTaskTrace], TraceTime]],
-) -> Tuple[FunctionOutputType, TaskTrace]:
+    results: Iterable[Tuple[Tuple[ReturnType, PartitionedTaskTrace], TraceTime]],
+) -> Tuple[ReturnType, TaskTrace]:
     """
     Wraps the ``combine_with`` function with performance timers.
 

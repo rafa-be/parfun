@@ -1,10 +1,13 @@
+from collections.abc import Callable
 from concurrent.futures import Future
-from typing import Any, Optional, Tuple
+from typing import Any, Generic, Optional, Tuple, TypeVar
 
 from parfun.profiler.object import TraceTime
 
+T = TypeVar("T")
 
-class ProfiledFuture(Future):
+
+class ProfiledFuture(Future, Generic[T]):
     """Future that provides an additional duration metric used to profile the task's duration."""
 
     def __init__(self, *args, **kwargs):
@@ -12,7 +15,13 @@ class ProfiledFuture(Future):
 
         self._duration = None
 
-    def set_result(self, result: Any, duration: Optional[TraceTime] = None):
+    def result(self, timeout: float | None = None) -> T:
+        return super().result(timeout)  # type: ignore[arg-type]
+
+    def add_done_callback(self, function: Callable[["ProfiledFuture[T]"], Any]) -> None:
+        return super().add_done_callback(function)  # type: ignore[arg-type]
+
+    def set_result(self, result: T, duration: Optional[TraceTime] = None):
         # Sets the task duration before the result, as set_result() triggers all completion callbacks.
         self._duration = duration
         return super().set_result(result)
@@ -34,7 +43,7 @@ class ProfiledFuture(Future):
 
         return self._duration
 
-    def result_and_duration(self, timeout: Optional[float] = None) -> Tuple[Any, Optional[TraceTime]]:
+    def result_and_duration(self, timeout: Optional[float] = None) -> Tuple[T, Optional[TraceTime]]:
         """
         Combines the calls to `result() and duration()`:
 

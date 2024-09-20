@@ -1,7 +1,7 @@
 import abc
 from contextlib import contextmanager
 from threading import BoundedSemaphore
-from typing import Generator, Optional
+from typing import Callable, Generator
 
 try:
     from dask.distributed import Client, Future, LocalCluster, worker_client
@@ -13,6 +13,7 @@ import psutil
 
 from parfun.backend.mixins import BackendEngine, BackendSession
 from parfun.backend.profiled_future import ProfiledFuture
+from parfun.object import Args, ReturnType
 from parfun.profiler.functions import profile, timed_function
 
 
@@ -30,9 +31,11 @@ class DaskSession(BackendSession):
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         return None
 
-    def submit(self, fn, *args, **kwargs) -> Optional[ProfiledFuture]:
+    def submit(
+        self, fn: Callable[Args, ReturnType], *args: Args.args, **kwargs: Args.kwargs
+    ) -> ProfiledFuture[ReturnType]:
         with profile() as submit_duration:
-            future = ProfiledFuture()
+            future: ProfiledFuture[ReturnType] = ProfiledFuture()
 
             acquired = self._concurrent_task_guard.acquire()
             if not acquired:
