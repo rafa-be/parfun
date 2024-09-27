@@ -2,6 +2,74 @@ Quick start
 ===========
 
 
+Setup
+-----
+
+First, add the ``parfun`` package to your *requirements.txt* file, or install it using PIP:
+
+.. code:: bash
+
+    pip install parfun
+
+
+The command here-above will **only install the base package**. If you wish to use the Scaler or Dask distributed
+backends, or to enable Pandas' support, use the `scaler`, `dask` and/or `pandas` extras:
+
+.. code:: bash
+
+    pip install parfun[scaler,dask,pandas]
+
+
+The library relies on a registered computing backend to schedule and distribute sub-tasks among a group of allocated
+workers.
+
+**Before using the library, the user should select the backend instance to use**. This can either be done process wise
+with the :py:func:`~parfun.entry_point.set_parallel_backend` or within a Python context with
+:py:func:`~parfun.entry_point.set_parallel_backend_context`.
+
+.. code:: python
+
+    from parfun.entry_point import set_parallel_backend, set_parallel_backend_context
+
+    # Set the parallel backend process-wise.
+    set_parallel_backend("local_multiprocessing")
+
+    # Set the parallel backend with a Python context.
+    with set_parallel_backend_context("scaler_remote", scheduler_address="tcp://scaler.cluster:1243"):
+        ... # Will run with parallel task over Scaler.
+
+
+Here is an overview of the most common backend options:
+
+
+.. list-table:: Common backend options
+
+   * -
+     - ``local_multiprocessing``
+     - ``scaler_local`` or ``scaler_remote``
+     - ``dask_local`` or ``dask_remote``
+   * - **Description**
+     - Python's built-in ``multiprocessing`` module.
+     - Local or remote `Scaler <https://github.com/citi/scaler>`_ cluster
+     - Local or remote `Dask <https://dask.org/>`_ cluster.
+   * - **Multiple cores**
+     - **Yes**
+     - **Yes**
+     - **Yes**
+   * - **Multiple machines**
+     - No
+     - **Yes**
+     - **Yes**
+   * - **Scheduling overhead**
+     - **Low**
+     - Moderate
+     - High
+
+
+See :py:func:`~parfun.entry_point.set_parallel_backend` for all available backend options.
+
+
+
 When to use it
 --------------
 
@@ -26,44 +94,6 @@ Other tasks cannot easily be parallelized:
   caused by our parallelization system (e.g. system communications and initialization).
 
 
-Setup
------
-
-First, add the ``parfun`` package to your *requirements.txt* file, or install it using PIP:
-
-.. code:: bash
-
-    pip install parfun
-
-
-The command here-above will **only install the base package**. If you wish to use the Scaler or Dask distributed
-backends, or to enable Pandas' support, use the `scaler`, `dask` and/or `scaler` extras:
-
-.. code:: bash
-
-    pip install parfun[dask,scaler,pandas]
-
-
-The library relies on a registered computing backend to schedule and distribute sub-tasks among a group of allocated
-workers.
-
-**Before using the library, the user should select the backend instance to use**. This can either be done process wise
-with the :py:func:`~parfun.entry_point.set_parallel_backend` or within a Python context with
-:py:func:`~parfun.entry_point.set_parallel_backend_context`.
-
-.. code:: python
-
-    from parfun.entry_point import set_parallel_backend, set_parallel_backend_context
-
-    # Set the parallel backend process-wise.
-    set_parallel_backend("local_multiprocessing")
-
-    # Set the parallel backend with a Python context.
-    with set_parallel_backend_context("scaler_remote", scheduler_address="tcp://scaler.cluster:1243"):
-        ... # Will run with parallel task over Scaler.
-
-
-See :py:func:`~parfun.entry_point.set_parallel_backend` for a description of the available backend options.
 
 
 Your first parallel function

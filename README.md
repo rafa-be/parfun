@@ -21,8 +21,14 @@
 Parfun is a lightweight library providing helpers to **make it easy to write and run a Python function in parallel
 and distributed systems**.
 
-The main feature of the library is its `@parfun` decorator that transparently executes standard Python functions
-following the [map-reduce](https://en.wikipedia.org/wiki/MapReduce) pattern:
+
+## Features
+
+### Map-reduce
+
+Parfun introduces a `@parfun` decorator that transparently executes a Python functions following the
+[map-reduce](https://en.wikipedia.org/wiki/MapReduce) pattern:
+
 
 ```Python
 from parfun import parfun
@@ -40,14 +46,23 @@ def list_pow(values: List[float], factor: float) -> List[float]:
     return [v**factor for v in values]
 ```
 
-## Features
 
-* **Provides significant speedups** to existing Python functions
-* **Does not require any deep knowledge of parallel or distributed computing systems**
-* **Automatically estimates the optimal sub-task splitting** (the *partition size*)
-* **Automatically handles data transmission, caching and synchronization**.
-* **Supports various distributed computing backends**, including Python's multiprocessing,
-  [Scaler](https://github.com/citi/scaler) or Dask.
+### Concurrent computations
+
+Parfun introduces a `@delayed` decorator that will transparently execute a function in the background:
+
+
+```Python
+@delayed
+def delayed_pow(a: float, b: float) -> float:
+    return math.pow(a, b)
+
+# This will compute all the `delayed_pow()` calls in parallel:
+total_sum = sum([delayed_pow(x, 2) for x in range(0, 1000)])
+
+# The return value of a delayed call behaves like its original value:
+print((delayed_pow(2, 2) + delayed_pow(4, 2)) * 4)  # 80
+```
 
 
 ## Benchmarks
@@ -61,6 +76,7 @@ When running a short 0.28-second ML function on an AMD Epyc 7313 16-Cores Proces
 
 
 ## Quick Start
+
 The built-in Sphinx documentation contains detailed usage instructions, implementation details, and an exhaustive
 API reference.
 
