@@ -72,7 +72,7 @@ def timed_partition(
 
     try:
         with profile() as first_value_duration:
-            first_value = next(generator)
+            first_value: Optional[NamedArguments] = next(generator)
 
         if first_value is not None:
             # This is a regular generator. Iterates without relying on the partition size estimator.
@@ -84,7 +84,7 @@ def timed_partition(
 
             while True:
                 with profile() as partition_duration:
-                    partition = next(generator)
+                    partition: NamedArguments = next(generator)
 
                 trace = PartitionedTaskTrace(
                     partition_size_estimate=None, partition_size=1, partition_duration=partition_duration.value
