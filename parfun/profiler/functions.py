@@ -4,11 +4,11 @@ import inspect
 import sys
 import time
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, Iterable, Optional, TextIO, Tuple
+from typing import Any, Callable, Generator, Iterable, Optional, TextIO, Tuple, cast
 
 from parfun.kernel.function_signature import NamedArguments
 from parfun.object import FunctionOutputType
-from parfun.partition.object import PartitionGenerator
+from parfun.partition.object import PartitionGenerator, SimplePartitionIterator, SmartPartitionGenerator
 from parfun.partition_size_estimator.mixins import PartitionSizeEstimator
 from parfun.profiler.object import PartitionedTaskTrace, ProfileDuration, TaskTrace, TraceTime
 
@@ -77,6 +77,8 @@ def timed_partition(
         if first_value is not None:
             # This is a regular generator. Iterates without relying on the partition size estimator.
 
+            simple_generator = cast(SimplePartitionIterator[NamedArguments], generator)
+
             trace = PartitionedTaskTrace(
                 partition_size_estimate=None, partition_size=1, partition_duration=first_value_duration.value
             )
@@ -84,7 +86,7 @@ def timed_partition(
 
             while True:
                 with profile() as partition_duration:
-                    partition: NamedArguments = next(generator)
+                    partition: NamedArguments = next(simple_generator)
 
                 trace = PartitionedTaskTrace(
                     partition_size_estimate=None, partition_size=1, partition_duration=partition_duration.value
@@ -92,6 +94,8 @@ def timed_partition(
                 yield partition, trace
         else:
             # This is a smart generator. Iterates while running the partition size estimator.
+
+            smart_generator = cast(SmartPartitionGenerator[NamedArguments], generator)
 
             if initial_partition_size is not None or fixed_partition_size is not None:
                 requested_partition_size = initial_partition_size or fixed_partition_size
@@ -105,7 +109,10 @@ def timed_partition(
 
             while True:
                 with profile() as partition_duration:
-                    partition_size, partition = generator.send(requested_partition_size)
+                    value = smart_generator.send(requested_partition_size)
+
+                assert value is not None, "smart partition generators cannot yield `None` values."
+                partition_size, partition = value
 
                 trace = PartitionedTaskTrace(
                     partition_size_estimate=partition_size_estimate,
